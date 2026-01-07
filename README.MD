@@ -1,29 +1,152 @@
-# HOW TO WORK WITH IT
+# Dekut Offline Navigator
 
-0. Transfer Data to postgres
+Offline-first navigation and feature viewer using PostgreSQL, Flask, and a static HTML frontend.
 
-The data is now in /DEKUT_features.csv
+---
 
-create the database in postgres
+## Features
 
-change this in `pg.py` to your correct config "db_config"
+* CSV to PostgreSQL data ingestion
+* Flask REST API
+* Static HTML frontend
+* Offline-capable local deployment
+* Ready for PostGIS and Leaflet integration
 
-make sure the path to `csv_file` also in "pg.py"
+---
 
-Run `python pg.py`.
+## Tech Stack
 
-Confirm in the database that the data is loaded
+* Backend: Python, Flask
+* Database: PostgreSQL (PostGIS-ready)
+* Frontend: HTML, JavaScript
+* Data Source: CSV
 
-1. Install dependencies
+---
 
-run `pip install -r requirements.txt`
+## Requirements
 
-2. Start the Backend Server
+* Python 3.9+
+* PostgreSQL 14+
+* pip
+* PostGIS
 
-run `python flask_server.py`
+---
 
-3. Open the HTML File
+## Setup Instructions
 
-Simply open `main.html` in your web browser.
+### 1. Clone the Repository
 
-The page will automatically connect to the Flask API and load all features from your PostgreSQL database.
+```bash
+git clone https://github.com/nodd-arch/nav.git
+cd nav
+```
+
+---
+
+### 2. Load Data into PostgreSQL
+
+#### 2.1 Prepare CSV
+
+Ensure the file exists:
+
+```
+DEKUT_features.csv
+```
+
+---
+
+#### 2.2 Create Database
+
+```sql
+CREATE DATABASE dekut_nav;
+```
+
+---
+
+#### 2.3 Configure Database Connection
+
+Edit `pg.py`:
+
+```python
+db_config = {
+    "host": "localhost",
+    "database": "dekut_nav",
+    "user": "your_username",
+    "password": "your_password",
+    "port": 5432
+}
+```
+
+Set the CSV path:
+
+```python
+csv_file = "your-own-path/DEKUT_features.csv"
+```
+
+---
+
+#### 2.4 Import Data
+
+```bash
+python pg.py
+```
+
+Verify:
+
+```sql
+SELECT * FROM dekut_features;
+```
+
+---
+
+### 3. Install Dependencies
+
+```bash
+pip install -r requirements.txt
+```
+
+---
+
+### 4. Start Backend Server
+
+```bash
+python flask_server.py
+```
+
+API runs at:
+
+```
+http://127.0.0.1:5000
+```
+
+---
+
+### 5. Open Frontend
+
+Open `http://localhost:5500/main.html` in your browser.
+
+The frontend automatically fetches features from the Flask API.
+
+---
+
+## API Endpoints
+
+### GET /features
+
+Returns all features stored in the database.
+
+---
+
+## Project Structure
+
+```
+nav/
+├── pg.py
+├── flask_server.py
+├── requirements.txt
+├── DEKUT_features.csv
+├── main.html
+└── README.md
+```
+
+---
