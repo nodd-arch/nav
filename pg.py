@@ -120,7 +120,7 @@ if __name__ == '__main__':
     }
     
     # CSV file path
-    csv_file = r"C:\Users\HomePC\Downloads\DEKUT_features.csv"
+    csv_file = r"D:\Projects\code\offline navigator\dekut-nav\DEKUT_features.csv"
     
     # Import
     import_csv_to_postgres(csv_file, db_config)
