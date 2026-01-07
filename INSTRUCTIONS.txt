@@ -1,0 +1,92 @@
+Steps / Instructions (GIS / Mapping Application)
+1) Requirements
+
+UI
+
+Platform: Android / iOS / Flutter / React Native
+
+Data
+
+2) Data Collection
+
+Base layers
+
+Overlays:
+
+Buildings
+
+Paths
+
+3) GIS & Mapping Tools
+
+Leaflet → for interactivity
+
+4) Developing Key Features
+a) Spatial Search Tool
+
+Should be at the top
+
+Search algorithm
+
+Linked to a database
+
+b) Panning & Zooming Tool
+
+Base layer toggling icon / map controls
+
+UI
+
+Map library integration
+
+c) Geolocation Tool
+
+Set the “Get Current Location” icon
+
+Get GPS data
+
+Update current location in real time
+
+5) Spatial Database
+a) Select the Database
+
+PostgreSQL with PostGIS
+
+OR SQLite with SpatiaLite
+
+b) Database Structure
+
+Point ID
+
+Latitude
+
+Longitude
+
+Building name
+
+Pathways
+
+Building information
+
+etc.
+
+c) Populating the Database
+6) Navigation & Route Calculation
+
+Get the optimal route
+
+From Point X to B
+
+7) Testing
+
+Test using real-world data / scenarios
+
+
+
+----------
+
+
+Develop a mobile GIS prototype for navigation that can be used by students when navigating from one point to another within the Dedan Kimathi University. The developed system must have 
+(i)	Spatial search tool
+(ii)	Panning  and zooming tool
+(iii)	Geolocating tool
+(iv)	Spatial database

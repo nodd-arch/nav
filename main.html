@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DEKUT GIS Navigation System</title>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        #map {
+            height: 100vh;
+            width: 100%;
+            z-index: 0;
+        }
+        
+        .custom-scroll::-webkit-scrollbar {
+            width: 6px;
+        }
+        .custom-scroll::-webkit-scrollbar-track {
+            background: #f1f1f1; 
+        }
+        .custom-scroll::-webkit-scrollbar-thumb {
+            background: #d1d5db; 
+            border-radius: 3px;
+        }
+        .custom-scroll::-webkit-scrollbar-thumb:hover {
+            background: #9ca3af; 
+        }
+
+        .leaflet-popup-content-wrapper {
+            border-radius: 8px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+        .leaflet-popup-content {
+            font-family: 'Inter', sans-serif;
+            margin: 12px;
+        }
+
+        .loading-spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #3b82f6;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="bg-gray-100 overflow-hidden relative flex">
+
+    <!-- SEARCH BAR -->
+    <div class="absolute top-4 left-4 z-[1000] w-80 flex flex-col gap-2">
+        <div class="bg-white rounded-lg shadow-lg flex items-center p-2 border border-gray-200 transition-all focus-within:ring-2 focus-within:ring-blue-500">
+            <i class="fa-solid fa-magnifying-glass text-gray-400 ml-2"></i>
+            <input 
+                type="text" 
+                id="search-input" 
+                placeholder="Search buildings, roads, gates..." 
+                class="w-full px-3 py-1.5 outline-none text-sm text-gray-700 placeholder-gray-400 bg-transparent"
+                autocomplete="off"
+            >
+            <button id="clear-search" class="hidden text-gray-400 hover:text-gray-600 mr-2">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+        
+        <div id="search-results" class="hidden bg-white rounded-lg shadow-lg border border-gray-200 overflow-hidden max-h-60 overflow-y-auto custom-scroll">
+        </div>
+    </div>
+
+    <!-- LOADING OVERLAY -->
+    <div id="loading-overlay" class="absolute inset-0 bg-black bg-opacity-50 z-[2000] flex items-center justify-center">
+        <div class="bg-white rounded-lg p-6 shadow-xl flex flex-col items-center gap-3">
+            <div class="loading-spinner"></div>
+            <p class="text-gray-700 font-medium">Loading DEKUT Campus...</p>
+        </div>
+    </div>
+
+    <!-- MAIN MAP AREA -->
+    <div id="map" class="flex-grow bg-gray-200"></div>
+
+    <!-- RIGHT SIDEBAR -->
+    <div class="w-96 h-screen bg-white shadow-2xl z-[1000] flex flex-col border-l border-gray-200">
+        
+        <!-- Sidebar Header -->
+        <div class="p-5 border-b border-gray-100 flex items-center justify-between">
+            <div>
+                <h1 class="font-bold text-lg text-gray-800 tracking-tight">DEKUT <span class="text-blue-600">Navigator</span></h1>
+                <p class="text-xs text-gray-500">Campus GIS Platform</p>
+            </div>
+            <div class="h-8 w-8 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center">
+                <i class="fa-solid fa-layer-group"></i>
+            </div>
+        </div>
+
+        <!-- Scrollable Content -->
+        <div class="flex-1 overflow-y-auto custom-scroll p-5 space-y-6">
+            
+            <!-- Stats Section -->
+            <div id="stats-section" class="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg p-4">
+                <h2 class="text-xs font-semibold text-blue-800 uppercase tracking-wider mb-3">Campus Overview</h2>
+                <div class="grid grid-cols-3 gap-2">
+                    <div class="bg-white rounded p-2 text-center">
+                        <div class="text-xl font-bold text-blue-600" id="stat-buildings">-</div>
+                        <div class="text-xs text-gray-600">Buildings</div>
+                    </div>
+                    <div class="bg-white rounded p-2 text-center">
+                        <div class="text-xl font-bold text-green-600" id="stat-roads">-</div>
+                        <div class="text-xs text-gray-600">Roads</div>
+                    </div>
+                    <div class="bg-white rounded p-2 text-center">
+                        <div class="text-xl font-bold text-orange-600" id="stat-points">-</div>
+                        <div class="text-xs text-gray-600">Gates</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tools Section -->
+            <div>
+                <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Tools</h2>
+                <div class="grid grid-cols-2 gap-2">
+                    <button onclick="getUserLocation()" class="flex items-center justify-center gap-2 bg-white border border-gray-200 hover:border-blue-500 hover:text-blue-600 text-gray-600 py-2 px-3 rounded-md text-sm transition-all shadow-sm">
+                        <i class="fa-solid fa-location-crosshairs"></i> Locate Me
+                    </button>
+                    <button onclick="resetView()" class="flex items-center justify-center gap-2 bg-white border border-gray-200 hover:border-blue-500 hover:text-blue-600 text-gray-600 py-2 px-3 rounded-md text-sm transition-all shadow-sm">
+                        <i class="fa-solid fa-house"></i> Reset View
+                    </button>
+                </div>
+            </div>
+
+            <!-- Base Layers Section -->
+            <div>
+                <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Base Maps</h2>
+                <div class="space-y-2">
+                    <label class="flex items-center p-3 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
+                        <input type="radio" name="basemap" value="osm" checked class="text-blue-600 focus:ring-blue-500 h-4 w-4 border-gray-300">
+                        <div class="ml-3">
+                            <span class="block text-sm font-medium text-gray-900">OpenStreetMap</span>
+                            <span class="block text-xs text-gray-500">Standard topographical</span>
+                        </div>
+                    </label>
+                    <label class="flex items-center p-3 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
+                        <input type="radio" name="basemap" value="satellite" class="text-blue-600 focus:ring-blue-500 h-4 w-4 border-gray-300">
+                        <div class="ml-3">
+                            <span class="block text-sm font-medium text-gray-900">Satellite (Esri)</span>
+                            <span class="block text-xs text-gray-500">Aerial imagery</span>
+                        </div>
+                    </label>
+                    <label class="flex items-center p-3 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
+                        <input type="radio" name="basemap" value="dark" class="text-blue-600 focus:ring-blue-500 h-4 w-4 border-gray-300">
+                        <div class="ml-3">
+                            <span class="block text-sm font-medium text-gray-900">Carto Dark</span>
+                            <span class="block text-xs text-gray-500">High contrast night mode</span>
+                        </div>
+                    </label>
+                </div>
+            </div>
+
+            <!-- Data Layers -->
+            <div>
+                <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Data Layers</h2>
+                <div class="bg-gray-50 rounded-lg p-3 space-y-3">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center">
+                            <input type="checkbox" id="layer-buildings" checked class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded">
+                            <label for="layer-buildings" class="ml-2 block text-sm text-gray-900">Buildings</label>
+                        </div>
+                        <span id="buildings-count" class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">0</span>
+                    </div>
+                    
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center">
+                            <input type="checkbox" id="layer-roads" checked class="h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300 rounded">
+                            <label for="layer-roads" class="ml-2 block text-sm text-gray-900">Roads & Paths</label>
+                        </div>
+                        <span id="roads-count" class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">0</span>
+                    </div>
+
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center">
+                            <input type="checkbox" id="layer-gates" checked class="h-4 w-4 text-orange-600 focus:ring-orange-500 border-gray-300 rounded">
+                            <label for="layer-gates" class="ml-2 block text-sm text-gray-900">Gates & Landmarks</label>
+                        </div>
+                        <span id="gates-count" class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-orange-100 text-orange-800">0</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Navigation -->
+            <div class="pt-4 border-t border-gray-100">
+                <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Navigation</h2>
+                <div class="space-y-2">
+                    <div class="relative">
+                        <i class="fa-regular fa-circle text-xs absolute left-3 top-3 text-gray-400"></i>
+                        <select id="start-select" class="w-full pl-8 pr-3 py-2 text-sm bg-white border border-gray-200 rounded-md focus:ring-1 focus:ring-blue-500 outline-none">
+                            <option value="">Select Starting Point...</option>
+                        </select>
+                    </div>
+                    <div class="relative">
+                        <i class="fa-solid fa-location-dot text-xs absolute left-3 top-3 text-red-500"></i>
+                        <select id="destination-select" class="w-full pl-8 pr-3 py-2 text-sm bg-white border border-gray-200 rounded-md focus:ring-1 focus:ring-blue-500 outline-none">
+                            <option value="">Select Destination...</option>
+                        </select>
+                    </div>
+                    <button onclick="calculateRoute()" class="w-full bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium py-2 px-4 rounded-md transition-colors mt-2 shadow-sm">
+                        <i class="fa-solid fa-route mr-2"></i>Calculate Route
+                    </button>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Footer -->
+        <div class="p-4 border-t border-gray-200 bg-gray-50">
+            <div class="flex items-center justify-between text-xs text-gray-500">
+                <span>Lat: <span id="mouse-lat">0.00000</span></span>
+                <span>Lng: <span id="mouse-lng">0.00000</span></span>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    
+    <script>
+        // API Configuration
+        const API_BASE_URL = 'http://localhost:5000/api';
+        
+        // Map Configuration
+        const config = {
+            initialZoom: 16,
+            centerLat: -0.3975,
+            centerLng: 36.9608
+        };
+
+        // Global variables for layers
+        let buildingsLayer = null;
+        let roadsLayer = null;
+        let gatesLayer = null;
+        let currentRouteLine = null;
+        let allFeatures = [];
+
+        // Initialize Map
+        const map = L.map('map', {
+            zoomControl: false,
+            attributionControl: false
+        }).setView([config.centerLat, config.centerLng], config.initialZoom);
+
+        L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+        // Base Layers
+        const basemaps = {
+            osm: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }),
+            satellite: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19 }),
+            dark: L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { maxZoom: 19 })
+        };
+
+        basemaps.osm.addTo(map);
+
+        // Basemap Switcher
+        document.querySelectorAll('input[name="basemap"]').forEach(radio => {
+            radio.addEventListener('change', (e) => {
+                Object.values(basemaps).forEach(layer => map.removeLayer(layer));
+                basemaps[e.target.value].addTo(map);
+            });
+        });
+
+        // Fetch and Load Data
+        async function loadMapData() {
+            try {
+                // Fetch all data in parallel
+                const [polygonsRes, linestringsRes, pointsRes, statsRes] = await Promise.all([
+                    fetch(`${API_BASE_URL}/features/polygons`),
+                    fetch(`${API_BASE_URL}/features/linestrings`),
+                    fetch(`${API_BASE_URL}/features/points`),
+                    fetch(`${API_BASE_URL}/stats`)
+                ]);
+
+                const polygons = await polygonsRes.json();
+                const linestrings = await linestringsRes.json();
+                const points = await pointsRes.json();
+                const stats = await statsRes.json();
+
+                // Store all features for search
+                allFeatures = [
+                    ...polygons.features,
+                    ...linestrings.features,
+                    ...points.features
+                ];
+
+                // Load Buildings (Polygons)
+                buildingsLayer = L.geoJSON(polygons, {
+                    style: {
+                        color: "#3b82f6",
+                        weight: 2,
+                        opacity: 1,
+                        fillOpacity: 0.3
+                    },
+                    onEachFeature: (feature, layer) => {
+                        const props = feature.properties;
+                        const area = props.area_m2 ? `<br>Area: ${props.area_m2.toFixed(2)} m²` : '';
+                        layer.bindPopup(`<strong>${props.name}</strong><br>Type: ${props.geometry_type}${area}`);
+                        
+                        layer.on('mouseover', function () { this.setStyle({ fillOpacity: 0.6 }); });
+                        layer.on('mouseout', function () { this.setStyle({ fillOpacity: 0.3 }); });
+                    }
+                }).addTo(map);
+
+                // Load Roads (LineStrings)
+                roadsLayer = L.geoJSON(linestrings, {
+                    style: {
+                        color: "#10b981",
+                        weight: 4,
+                        opacity: 0.8
+                    },
+                    onEachFeature: (feature, layer) => {
+                        const props = feature.properties;
+                        const length = props.length_m ? `<br>Length: ${props.length_m.toFixed(2)} m` : '';
+                        layer.bindPopup(`<strong>${props.name}</strong><br>Type: ${props.geometry_type}${length}`);
+                    }
+                }).addTo(map);
+
+                // Load Gates (Points)
+                const gateIcon = L.divIcon({
+                    className: 'custom-div-icon',
+                    html: "<div style='background-color:#f97316; width:16px; height:16px; border-radius:50%; border:3px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);'></div>",
+                    iconSize: [22, 22],
+                    iconAnchor: [11, 11]
+                });
+
+                gatesLayer = L.geoJSON(points, {
+                    pointToLayer: (feature, latlng) => {
+                        return L.marker(latlng, { icon: gateIcon });
+                    },
+                    onEachFeature: (feature, layer) => {
+                        const props = feature.properties;
+                        layer.bindPopup(`<strong>${props.name}</strong><br>Type: ${props.geometry_type}<br>Coordinates: ${props.latitude.toFixed(5)}, ${props.longitude.toFixed(5)}`);
+                    }
+                }).addTo(map);
+
+                // Update UI Counts
+                updateStats(stats);
+                updateLayerCounts(polygons.features.length, linestrings.features.length, points.features.length);
+                
+                // Populate destination dropdowns
+                populateDestinations();
+
+                // Fit map to data bounds
+                if (allFeatures.length > 0) {
+                    const bounds = L.geoJSON({
+                        type: "FeatureCollection",
+                        features: allFeatures
+                    }).getBounds();
+                    map.fitBounds(bounds, { padding: [50, 50] });
+                }
+
+                // Hide loading overlay
+                document.getElementById('loading-overlay').style.display = 'none';
+
+            } catch (error) {
+                console.error('Error loading map data:', error);
+                alert('Failed to load map data. Please ensure the API server is running.');
+                document.getElementById('loading-overlay').style.display = 'none';
+            }
+        }
+
+        function updateStats(stats) {
+            const typeMap = {};
+            stats.by_type.forEach(item => {
+                typeMap[item.geometry_type] = item.count;
+            });
+
+            document.getElementById('stat-buildings').textContent = typeMap.Polygon || 0;
+            document.getElementById('stat-roads').textContent = typeMap.LineString || 0;
+            document.getElementById('stat-points').textContent = typeMap.Point || 0;
+        }
+
+        function updateLayerCounts(buildings, roads, gates) {
+            document.getElementById('buildings-count').textContent = buildings;
+            document.getElementById('roads-count').textContent = roads;
+            document.getElementById('gates-count').textContent = gates;
+        }
+
+        function populateDestinations() {
+            const startSelect = document.getElementById('start-select');
+            const destSelect = document.getElementById('destination-select');
+
+            allFeatures.forEach(feature => {
+                const option1 = document.createElement('option');
+                option1.value = feature.id;
+                option1.textContent = feature.properties.name;
+                startSelect.appendChild(option1);
+
+                const option2 = document.createElement('option');
+                option2.value = feature.id;
+                option2.textContent = feature.properties.name;
+                destSelect.appendChild(option2);
+            });
+        }
+
+        // Layer Toggle Handlers
+        document.getElementById('layer-buildings').addEventListener('change', (e) => {
+            if (e.target.checked) map.addLayer(buildingsLayer);
+            else map.removeLayer(buildingsLayer);
+        });
+
+        document.getElementById('layer-roads').addEventListener('change', (e) => {
+            if (e.target.checked) map.addLayer(roadsLayer);
+            else map.removeLayer(roadsLayer);
+        });
+
+        document.getElementById('layer-gates').addEventListener('change', (e) => {
+            if (e.target.checked) map.addLayer(gatesLayer);
+            else map.removeLayer(gatesLayer);
+        });
+
+        // Search Functionality
+        const searchInput = document.getElementById('search-input');
+        const searchResults = document.getElementById('search-results');
+        const clearSearchBtn = document.getElementById('clear-search');
+
+        searchInput.addEventListener('input', async (e) => {
+            const query = e.target.value.trim();
+            
+            if (query.length > 0) {
+                clearSearchBtn.classList.remove('hidden');
+            } else {
+                clearSearchBtn.classList.add('hidden');
+                searchResults.classList.add('hidden');
+                return;
+            }
+
+            if (query.length < 2) return;
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/search?q=${encodeURIComponent(query)}`);
+                const results = await response.json();
+                
+                renderSearchResults(results);
+            } catch (error) {
+                console.error('Search error:', error);
+            }
+        });
+
+        function renderSearchResults(results) {
+            searchResults.innerHTML = '';
+            
+            if (results.length === 0) {
+                searchResults.innerHTML = '<div class="p-3 text-sm text-gray-500">No results found</div>';
+                searchResults.classList.remove('hidden');
+                return;
+            }
+
+            results.forEach(item => {
+                const div = document.createElement('div');
+                div.className = 'p-3 hover:bg-gray-100 cursor-pointer border-b border-gray-100 last:border-0';
+                div.innerHTML = `
+                    <div class="font-medium text-sm text-gray-800">${item.name}</div>
+                    <div class="text-xs text-gray-500">${item.type}</div>
+                `;
+                div.onclick = () => {
+                    map.flyTo([item.latitude, item.longitude], 18);
+                    
+                    L.popup()
+                        .setLatLng([item.latitude, item.longitude])
+                        .setContent(`<strong>${item.name}</strong><br>Type: ${item.type}`)
+                        .openOn(map);
+                    
+                    searchInput.value = item.name;
+                    searchResults.classList.add('hidden');
+                };
+                searchResults.appendChild(div);
+            });
+            
+            searchResults.classList.remove('hidden');
+        }
+
+        clearSearchBtn.addEventListener('click', () => {
+            searchInput.value = '';
+            searchResults.classList.add('hidden');
+            clearSearchBtn.classList.add('hidden');
+        });
+
+        map.on('click', () => searchResults.classList.add('hidden'));
+
+        // Geolocation
+        let userMarker = null;
+
+        function getUserLocation() {
+            if (!navigator.geolocation) {
+                alert("Geolocation is not supported by your browser");
+                return;
+            }
+
+            navigator.geolocation.getCurrentPosition((position) => {
+                const { latitude, longitude } = position.coords;
+                
+                if (userMarker) map.removeLayer(userMarker);
+                
+                const userIcon = L.divIcon({
+                    className: 'custom-div-icon',
+                    html: "<div style='background-color:#2563eb; width:12px; height:12px; border-radius:50%; border:2px solid white; box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.3);'></div>",
+                    iconSize: [20, 20],
+                    iconAnchor: [10, 10]
+                });
+                
+                userMarker = L.marker([latitude, longitude], { icon: userIcon }).addTo(map);
+                map.setView([latitude, longitude], 17);
+                
+                L.popup()
+                    .setLatLng([latitude, longitude])
+                    .setContent("You are here")
+                    .openOn(map);
+            }, () => {
+                alert("Location access denied. Resetting to campus center.");
+                resetView();
+            });
+        }
+
+        function resetView() {
+            if (allFeatures.length > 0) {
+                const bounds = L.geoJSON({
+                    type: "FeatureCollection",
+                    features: allFeatures
+                }).getBounds();
+                map.fitBounds(bounds, { padding: [50, 50] });
+            } else {
+                map.flyTo([config.centerLat, config.centerLng], config.initialZoom);
+            }
+        }
+
+        // Mouse Coordinates
+        map.on('mousemove', (e) => {
+            document.getElementById('mouse-lat').textContent = e.latlng.lat.toFixed(5);
+            document.getElementById('mouse-lng').textContent = e.latlng.lng.toFixed(5);
+        });
+
+        // Route Calculation
+        async function calculateRoute() {
+            const startId = document.getElementById('start-select').value;
+            const endId = document.getElementById('destination-select').value;
+            
+            if (!startId || !endId) {
+                alert('Please select both start and destination points');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/route`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        start_id: startId,
+                        end_id: endId
+                    })
+                });
+
+                const route = await response.json();
+                
+                if (currentRouteLine) map.removeLayer(currentRouteLine);
+
+                currentRouteLine = L.geoJSON(route, {
+                    style: {
+                        color: 'red',
+                        weight: 4,
+                        opacity: 0.7,
+                        dashArray: '10, 10',
+                        lineCap: 'round'
+                    }
+                }).addTo(map);
+
+                map.fitBounds(currentRouteLine.getBounds(), { padding: [100, 100] });
+                
+            } catch (error) {
+                console.error('Route calculation error:', error);
+                alert('Failed to calculate route');
+            }
+        }
+
+        // Initialize on page load
+        loadMapData();
+    </script>
+</body>
+</html>
